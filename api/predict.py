@@ -3,8 +3,7 @@ import joblib
 import numpy as np
 import os
 
-# ✅ Make sure static folder points to "../public"
-app = Flask(__name__, static_folder="../public", static_url_path="")
+app = Flask(__name__)
 
 _model = None
 _le = None
@@ -80,20 +79,6 @@ def predict():
         return jsonify({'success': False, 'error': traceback.format_exc()}), 500
 
 
-# ✅ Serve the frontend UI
-@app.route('/')
-def serve_index():
-    public_path = os.path.join(os.path.dirname(__file__), '../public')
-    return send_from_directory(public_path, 'index.html')
-
-
-# ✅ Serve static files like CSS, JS, and images
-@app.route('/<path:path>')
-def serve_static(path):
-    public_path = os.path.join(os.path.dirname(__file__), '../public')
-    return send_from_directory(public_path, path)
-
-
 @app.route('/api/health')
 def health():
     try:
@@ -103,5 +88,19 @@ def health():
         return jsonify({'status': 'unhealthy', 'error': str(e)})
 
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# ✅ Serve the frontend UI at root
+@app.route('/')
+def serve_index():
+    public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
+    if os.path.exists(os.path.join(public_path, 'index.html')):
+        return send_from_directory(public_path, 'index.html')
+    return "Frontend not found", 404
+
+
+# ✅ Serve static files
+@app.route('/<path:filename>')
+def serve_static(filename):
+    public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
+    if os.path.exists(os.path.join(public_path, filename)):
+        return send_from_directory(public_path, filename)
+    return "File not found", 404
