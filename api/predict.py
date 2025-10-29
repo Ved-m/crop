@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 import joblib
 import numpy as np
 import os
-import sys
 
 app = Flask(__name__)
 
@@ -19,7 +18,6 @@ def load_model():
     
     if _model is None:
         try:
-            # Try different possible paths
             possible_paths = [
                 'crop_model.pkl',
                 '../crop_model.pkl',
@@ -27,15 +25,10 @@ def load_model():
                 os.path.join(os.path.dirname(__file__), '..', 'crop_model.pkl'),
             ]
             
-            model_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    model_path = path
-                    break
-            
+            model_path = next((p for p in possible_paths if os.path.exists(p)), None)
             if model_path is None:
-                raise FileNotFoundError("crop_model.pkl not found in any expected location")
-            
+                raise FileNotFoundError("crop_model.pkl not found")
+
             print(f"Loading model from: {model_path}")
             package = joblib.load(model_path)
             
@@ -48,24 +41,21 @@ def load_model():
             print(f"✅ Model loaded: {_model_name}")
         except Exception as e:
             print(f"❌ Error loading model: {e}")
-            print(f"Current directory: {os.getcwd()}")
-            print(f"Directory contents: {os.listdir('.')}")
             raise
     
     return _model, _le, _model_name, _accuracy, _crops
+
 
 @app.route('/api/predict', methods=['POST'])
 def predict():
     try:
         model, le, model_name, accuracy, crops = load_model()
-        
-        # Get data from request
         data = request.get_json()
-        
+
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
-        
-        # Extract features
+
+        # Extract and validate inputs
         nitrogen = float(data['nitrogen'])
         phosphorus = float(data['phosphorus'])
         potassium = float(data['potassium'])
@@ -73,91 +63,60 @@ def predict():
         humidity = float(data['humidity'])
         ph = float(data['ph'])
         rainfall = float(data['rainfall'])
-        
-        # Validate ranges
+
         if not (0 <= ph <= 14):
             return jsonify({'success': False, 'error': 'pH must be 0-14'}), 400
-        
         if not (0 <= humidity <= 100):
             return jsonify({'success': False, 'error': 'Humidity must be 0-100'}), 400
-        
         if rainfall < 0:
             return jsonify({'success': False, 'error': 'Rainfall cannot be negative'}), 400
-        
-        # Create feature array
-        features = np.array([[nitrogen, phosphorus, potassium, temperature, 
-                            humidity, ph, rainfall]])
-        
-        # Make prediction
+
+        # Predict
+        features = np.array([[nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall]])
         prediction = model.predict(features)
         predicted_crop = le.inverse_transform(prediction)[0]
-        
-        # Get probabilities if available
-        confidence = None
-        top_predictions = None
-        
+
+        confidence, top_predictions = None, None
         if hasattr(model, 'predict_proba'):
             proba = model.predict_proba(features)[0]
             confidence = float(np.max(proba) * 100)
-            
-            # Top 3 predictions
             top_indices = np.argsort(proba)[-3:][::-1]
             top_predictions = [
-                {
-                    'crop': le.inverse_transform([idx])[0],
-                    'probability': float(proba[idx] * 100)
-                }
+                {'crop': le.inverse_transform([idx])[0], 'probability': float(proba[idx] * 100)}
                 for idx in top_indices
             ]
-        
+
         return jsonify({
             'success': True,
             'crop': predicted_crop,
             'confidence': confidence,
             'top_predictions': top_predictions,
-            'model_info': {
-                'name': model_name,
-                'accuracy': accuracy
-            }
+            'model_info': {'name': model_name, 'accuracy': accuracy}
         })
-    
+
     except Exception as e:
         import traceback
-        error_trace = traceback.format_exc()
-        print(f"Error: {error_trace}")
-        return jsonify({
-            'success': False,
-            'error': f'Error: {str(e)}'
-        }), 500
+        return jsonify({'success': False, 'error': traceback.format_exc()}), 500
+
 
 @app.route('/api/model-info', methods=['GET'])
 def model_info():
     try:
         model, le, model_name, accuracy, crops = load_model()
-        return jsonify({
-            'success': True,
-            'model_name': model_name,
-            'accuracy': accuracy,
-            'crops': crops
-        })
+        return jsonify({'success': True, 'model_name': model_name, 'accuracy': accuracy, 'crops': crops})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/api/health', methods=['GET'])
 def health():
     try:
         load_model()
-        return jsonify({
-            'status': 'healthy',
-            'model_loaded': True
-        })
+        return jsonify({'status': 'healthy', 'model_loaded': True})
     except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'model_loaded': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'status': 'unhealthy', 'model_loaded': False, 'error': str(e)}), 500
 
-# Vercel serverless handler
-def handler(event, context):
-    return app(event, context)
+
+# ✅ Vercel entry point
+# Just expose the Flask app object
+app = app
