@@ -80,8 +80,8 @@ def predict():
 
 
 @app.route('/')
-def serve_index():
-    return send_from_directory(app.static_folder, 'index.html')
+def home():
+    return render_template('/public/index.html')
 
 
 @app.route('/api/health')
