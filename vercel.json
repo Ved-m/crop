@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "builds": [
     {
       "src": "api/predict.py",
@@ -6,9 +7,6 @@
     }
   ],
   "routes": [
-    {
-      "src": "/api/predict",
-      "dest": "api/predict.py"
-    }
+    { "src": "/api/(.*)", "dest": "api/predict.py" }
   ]
 }
