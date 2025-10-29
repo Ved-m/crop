@@ -3,7 +3,7 @@ import joblib
 import numpy as np
 import os
 
-app = Flask(__name__, static_folder="../public", static_url_path="/")
+app = Flask(__name__, static_folder="public", static_url_path="")
 
 _model = None
 _le = None
@@ -79,9 +79,16 @@ def predict():
         return jsonify({'success': False, 'error': traceback.format_exc()}), 500
 
 
+# Serve the frontend UI
 @app.route('/')
-def home():
-    return render_template('/public/index.html')
+def serve_index():
+    return send_from_directory(app.static_folder, 'index.html')
+
+
+# Optional: serve static assets (JS, CSS)
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_from_directory(app.static_folder, path)
 
 
 @app.route('/api/health')
@@ -93,4 +100,5 @@ def health():
         return jsonify({'status': 'unhealthy', 'error': str(e)})
 
 
-app = app
+if __name__ == '__main__':
+    app.run(debug=True)
