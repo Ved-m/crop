@@ -3,10 +3,14 @@
     {
       "src": "api/predict.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "api/predict.py" },
-    { "src": "/(.*)", "dest": "api/predict.py" }
+    { "src": "/(.*)", "dest": "public/$1" }
   ]
 }
