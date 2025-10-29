@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import joblib
 import numpy as np
 import os
+predict_bp = Blueprint('predict_bp', __name__)
 
 app = Flask(__name__)
 
