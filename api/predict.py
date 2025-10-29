@@ -3,7 +3,8 @@ import joblib
 import numpy as np
 import os
 
-app = Flask(__name__, static_folder="public", static_url_path="")
+# ✅ Make sure static folder points to "../public"
+app = Flask(__name__, static_folder="../public", static_url_path="")
 
 _model = None
 _le = None
@@ -52,7 +53,7 @@ def predict():
         rainfall = float(data['rainfall'])
 
         if not (0 <= ph <= 14):
-            return jsonify({'success': False, 'error': 'Invalid pH'}), 400
+            return jsonify({'success': False, 'error': 'Invalid pH value'}), 400
 
         features = np.array([[nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall]])
         prediction = model.predict(features)
@@ -79,16 +80,18 @@ def predict():
         return jsonify({'success': False, 'error': traceback.format_exc()}), 500
 
 
-# Serve the frontend UI
+# ✅ Serve the frontend UI
 @app.route('/')
 def serve_index():
-    return send_from_directory(app.static_folder, 'index.html')
+    public_path = os.path.join(os.path.dirname(__file__), '../public')
+    return send_from_directory(public_path, 'index.html')
 
 
-# Optional: serve static assets (JS, CSS)
+# ✅ Serve static files like CSS, JS, and images
 @app.route('/<path:path>')
 def serve_static(path):
-    return send_from_directory(app.static_folder, path)
+    public_path = os.path.join(os.path.dirname(__file__), '../public')
+    return send_from_directory(public_path, path)
 
 
 @app.route('/api/health')
