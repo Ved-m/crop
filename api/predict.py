@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import joblib
 import numpy as np
 import os
+import sys
 
 app = Flask(__name__)
 
@@ -18,8 +19,24 @@ def load_model():
     
     if _model is None:
         try:
-            # Vercel stores files in /var/task/
-            model_path = os.path.join(os.path.dirname(__file__), '..', 'crop_model.pkl')
+            # Try different possible paths
+            possible_paths = [
+                'crop_model.pkl',
+                '../crop_model.pkl',
+                '/var/task/crop_model.pkl',
+                os.path.join(os.path.dirname(__file__), '..', 'crop_model.pkl'),
+            ]
+            
+            model_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    model_path = path
+                    break
+            
+            if model_path is None:
+                raise FileNotFoundError("crop_model.pkl not found in any expected location")
+            
+            print(f"Loading model from: {model_path}")
             package = joblib.load(model_path)
             
             _model = package['model']
@@ -31,6 +48,8 @@ def load_model():
             print(f"✅ Model loaded: {_model_name}")
         except Exception as e:
             print(f"❌ Error loading model: {e}")
+            print(f"Current directory: {os.getcwd()}")
+            print(f"Directory contents: {os.listdir('.')}")
             raise
     
     return _model, _le, _model_name, _accuracy, _crops
@@ -42,6 +61,9 @@ def predict():
         
         # Get data from request
         data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
         
         # Extract features
         nitrogen = float(data['nitrogen'])
@@ -100,6 +122,9 @@ def predict():
         })
     
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"Error: {error_trace}")
         return jsonify({
             'success': False,
             'error': f'Error: {str(e)}'
@@ -115,8 +140,8 @@ def model_info():
             'accuracy': accuracy,
             'crops': crops
         })
-    except:
-        return jsonify({'success': False, 'error': 'Model not loaded'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/health', methods=['GET'])
 def health():
@@ -126,13 +151,13 @@ def health():
             'status': 'healthy',
             'model_loaded': True
         })
-    except:
+    except Exception as e:
         return jsonify({
             'status': 'unhealthy',
-            'model_loaded': False
+            'model_loaded': False,
+            'error': str(e)
         }), 500
 
 # Vercel serverless handler
-def handler(request):
-    with app.request_context(request.environ):
-        return app.full_dispatch_request()
+def handler(event, context):
+    return app(event, context)
