@@ -88,19 +88,20 @@ def health():
         return jsonify({'status': 'unhealthy', 'error': str(e)})
 
 
-# ✅ Serve the frontend UI at root
-@app.route('/')
-def serve_index():
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path.startswith('api/'):
+        return {'error': 'Not found'}, 404
+    
     public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
-    if os.path.exists(os.path.join(public_path, 'index.html')):
+    
+    if path == '':
         return send_from_directory(public_path, 'index.html')
-    return "Frontend not found", 404
-
-
-# ✅ Serve static files
-@app.route('/<path:filename>')
-def serve_static(filename):
-    public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
-    if os.path.exists(os.path.join(public_path, filename)):
-        return send_from_directory(public_path, filename)
-    return "File not found", 404
+    
+    file_path = os.path.join(public_path, path)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(public_path, path)
+    
+    # If file not found, try serving index.html (for SPA routing)
+    return send_from_directory(public_path, 'index.html')
