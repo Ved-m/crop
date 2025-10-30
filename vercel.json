@@ -8,11 +8,7 @@
   ],
   "routes": [
     {
-      "src": "/api/predict",
-      "dest": "api/predict.py"
-    },
-    {
-      "src": "/api/health",
+      "src": "/api/(.*)",
       "dest": "api/predict.py"
     },
     {
