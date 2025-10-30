@@ -88,53 +88,23 @@ def health():
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
 
-# Root route
 @app.route('/', methods=['GET'])
 def index():
     public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
-    index_path = os.path.join(public_path, 'index.html')
-    
-    if os.path.exists(index_path):
-        return send_from_directory(public_path, 'index.html')
-    else:
-        # Debug info
-        files = os.listdir(public_path) if os.path.exists(public_path) else []
-        return jsonify({
-            'message': 'Crop Prediction API',
-            'endpoints': {
-                'predict': '/api/predict (POST)',
-                'health': '/api/health (GET)'
-            },
-            'debug': {
-                'public_path': public_path,
-                'public_exists': os.path.exists(public_path),
-                'files_in_public': files
-            }
-        })
+    return send_from_directory(public_path, 'index.html')
 
 
-# Serve static files
-@app.route('/<path:filename>', methods=['GET'])
-def serve_static(filename):
-    if filename == 'favicon.ico':
+@app.route('/<path:path>', methods=['GET'])
+def serve_file(path):
+    if path == 'favicon.ico':
         return '', 204
     
-    if filename.startswith('api/'):
+    if path.startswith('api/'):
         return jsonify({'error': 'Not found'}), 404
     
     public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
-    file_path = os.path.join(public_path, filename)
     
-    if os.path.exists(file_path) and os.path.isfile(file_path):
-        return send_from_directory(public_path, filename)
-    else:
-        # Fallback to index.html for SPA routing
-        index_path = os.path.join(public_path, 'index.html')
-        if os.path.exists(index_path):
-            return send_from_directory(public_path, 'index.html')
-        else:
-            return jsonify({'error': 'File not found'}), 404
-
-
-# Vercel serverless function handler
-app.config['DEBUG'] = False
+    try:
+        return send_from_directory(public_path, path)
+    except:
+        return send_from_directory(public_path, 'index.html')
