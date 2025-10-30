@@ -79,7 +79,7 @@ def predict():
         return jsonify({'success': False, 'error': traceback.format_exc()}), 500
 
 
-@app.route('/api/health')
+@app.route('/api/health', methods=['GET'])
 def health():
     try:
         load_model()
@@ -88,39 +88,53 @@ def health():
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
 
-# Handle root and all other paths
-@app.route('/')
+# Root route
+@app.route('/', methods=['GET'])
 def index():
     public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
-    try:
+    index_path = os.path.join(public_path, 'index.html')
+    
+    if os.path.exists(index_path):
         return send_from_directory(public_path, 'index.html')
-    except Exception as e:
-        return f"Error: {str(e)}. Public path: {public_path}", 500
+    else:
+        # Debug info
+        files = os.listdir(public_path) if os.path.exists(public_path) else []
+        return jsonify({
+            'message': 'Crop Prediction API',
+            'endpoints': {
+                'predict': '/api/predict (POST)',
+                'health': '/api/health (GET)'
+            },
+            'debug': {
+                'public_path': public_path,
+                'public_exists': os.path.exists(public_path),
+                'files_in_public': files
+            }
+        })
 
 
-@app.route('/<path:filename>')
+# Serve static files
+@app.route('/<path:filename>', methods=['GET'])
 def serve_static(filename):
-    # Handle favicon
     if filename == 'favicon.ico':
         return '', 204
     
-    # Don't handle api routes here
     if filename.startswith('api/'):
         return jsonify({'error': 'Not found'}), 404
     
     public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
+    file_path = os.path.join(public_path, filename)
     
-    try:
-        file_path = os.path.join(public_path, filename)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return send_from_directory(public_path, filename)
-        else:
-            # Fallback to index.html for SPA routing
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(public_path, filename)
+    else:
+        # Fallback to index.html for SPA routing
+        index_path = os.path.join(public_path, 'index.html')
+        if os.path.exists(index_path):
             return send_from_directory(public_path, 'index.html')
-    except Exception as e:
-        return f"File not found: {filename}", 404
+        else:
+            return jsonify({'error': 'File not found'}), 404
 
 
-# This is critical for Vercel
-def handler(event, context):
-    return app(event, context)
+# Vercel serverless function handler
+app.config['DEBUG'] = False
