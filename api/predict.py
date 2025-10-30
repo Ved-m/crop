@@ -88,53 +88,39 @@ def health():
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
 
-# Serve static files - this must come AFTER API routes
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    print(f"Requested path: '{path}'")  # Debugging
-    
-    # Skip API routes
-    if path.startswith('api/'):
-        return jsonify({'error': 'Not found'}), 404
-    
-    # Get the public directory path
+# Handle root and all other paths
+@app.route('/')
+def index():
     public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
-    print(f"Public path: {public_path}")  # Debugging
-    print(f"Public path exists: {os.path.exists(public_path)}")  # Debugging
-    
-    # For favicon, return 204 No Content (optional, to avoid log spam)
-    if path == 'favicon.ico':
-        return '', 204
-    
-    # Root path or empty - serve index.html
-    if path == '' or path == 'index.html':
-        index_file = os.path.join(public_path, 'index.html')
-        print(f"Index file path: {index_file}")  # Debugging
-        print(f"Index file exists: {os.path.exists(index_file)}")  # Debugging
-        
-        try:
-            return send_from_directory(public_path, 'index.html')
-        except FileNotFoundError:
-            # List what's actually in the directory
-            try:
-                files = os.listdir(public_path) if os.path.exists(public_path) else []
-                return f"index.html not found in {public_path}. Files present: {files}", 404
-            except:
-                return f"Public directory not found: {public_path}", 404
-        except Exception as e:
-            return f"Error serving index.html: {str(e)}", 500
-    
-    # Try to serve the specific file
-    try:
-        file_path = os.path.join(public_path, path)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return send_from_directory(public_path, path)
-    except Exception as e:
-        print(f"Error serving {path}: {str(e)}")  # Debugging
-    
-    # Fallback to index.html (for SPA routing)
     try:
         return send_from_directory(public_path, 'index.html')
     except Exception as e:
-        return f"File not found: {path}. Error: {str(e)}", 404
+        return f"Error: {str(e)}. Public path: {public_path}", 500
+
+
+@app.route('/<path:filename>')
+def serve_static(filename):
+    # Handle favicon
+    if filename == 'favicon.ico':
+        return '', 204
+    
+    # Don't handle api routes here
+    if filename.startswith('api/'):
+        return jsonify({'error': 'Not found'}), 404
+    
+    public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
+    
+    try:
+        file_path = os.path.join(public_path, filename)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return send_from_directory(public_path, filename)
+        else:
+            # Fallback to index.html for SPA routing
+            return send_from_directory(public_path, 'index.html')
+    except Exception as e:
+        return f"File not found: {filename}", 404
+
+
+# This is critical for Vercel
+def handler(event, context):
+    return app(event, context)
