@@ -24,7 +24,7 @@ def load_model():
         model_path = next((p for p in paths if os.path.exists(p)), None)
         if model_path is None:
             raise FileNotFoundError("crop_model.pkl not found")
-
+        
         package = joblib.load(model_path)
         _model = package['model']
         _le = package['label_encoder']
@@ -39,10 +39,10 @@ def predict():
     try:
         model, le, model_name, accuracy, crops = load_model()
         data = request.get_json()
-
+        
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
-
+        
         nitrogen = float(data['nitrogen'])
         phosphorus = float(data['phosphorus'])
         potassium = float(data['potassium'])
@@ -50,14 +50,14 @@ def predict():
         humidity = float(data['humidity'])
         ph = float(data['ph'])
         rainfall = float(data['rainfall'])
-
+        
         if not (0 <= ph <= 14):
             return jsonify({'success': False, 'error': 'Invalid pH value'}), 400
-
+        
         features = np.array([[nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall]])
         prediction = model.predict(features)
         predicted_crop = le.inverse_transform(prediction)[0]
-
+        
         proba = model.predict_proba(features)[0]
         confidence = float(np.max(proba) * 100)
         top_indices = np.argsort(proba)[-3:][::-1]
@@ -65,7 +65,7 @@ def predict():
             {'crop': le.inverse_transform([idx])[0], 'probability': float(proba[idx] * 100)}
             for idx in top_indices
         ]
-
+        
         return jsonify({
             'success': True,
             'crop': predicted_crop,
@@ -73,7 +73,7 @@ def predict():
             'top_predictions': top_predictions,
             'model_info': {'name': model_name, 'accuracy': accuracy}
         })
-
+    
     except Exception as e:
         import traceback
         return jsonify({'success': False, 'error': traceback.format_exc()}), 500
@@ -85,23 +85,45 @@ def health():
         load_model()
         return jsonify({'status': 'healthy', 'model_loaded': True})
     except Exception as e:
-        return jsonify({'status': 'unhealthy', 'error': str(e)})
+        return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
 
 
+# Catch-all route for serving static files
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
+    # Skip API routes
     if path.startswith('api/'):
-        return {'error': 'Not found'}, 404
+        return jsonify({'error': 'Not found'}), 404
     
+    # Get the public directory path
     public_path = os.path.join(os.path.dirname(__file__), '..', 'public')
     
+    # Root path - serve index.html
     if path == '':
+        try:
+            return send_from_directory(public_path, 'index.html')
+        except FileNotFoundError:
+            return f"index.html not found. Looking in: {public_path}", 404
+        except Exception as e:
+            return f"Error: {str(e)}", 500
+    
+    # Try to serve the specific file
+    try:
+        file_path = os.path.join(public_path, path)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return send_from_directory(public_path, path)
+    except Exception as e:
+        pass
+    
+    # Fallback to index.html (for SPA routing)
+    try:
         return send_from_directory(public_path, 'index.html')
-    
-    file_path = os.path.join(public_path, path)
-    if os.path.exists(file_path) and os.path.isfile(file_path):
-        return send_from_directory(public_path, path)
-    
-    # If file not found, try serving index.html (for SPA routing)
-    return send_from_directory(public_path, 'index.html')
+    except Exception as e:
+        return f"File not found: {path}", 404
+
+
+# This is important for Vercel
+if __name__ != '__main__':
+    application = app
+
